@@ -1,0 +1,53 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AIウミガメのスープ</title>
+<style>
+body{font-family:-apple-system,"Hiragino Sans",sans-serif;max-width:640px;margin:40px auto;padding:0 16px;color:#222;background:#fafafa}
+h1{font-size:20px}
+select{font-size:14px;padding:4px}
+.story{background:#fff;border:1px solid #ddd;padding:14px;border-radius:6px;margin:12px 0;line-height:1.7}
+#log{margin:12px 0}
+.q{margin:10px 0 2px;color:#555}
+.a{margin:0 0 8px 16px;font-weight:600}
+.a small{font-weight:400;color:#888;margin-left:8px}
+.hot{color:#b05a00}
+.solved{background:#e6f4ea;border:1px solid #9bd0a9;padding:12px;border-radius:6px;margin-top:12px;line-height:1.7;white-space:pre-wrap}
+.err{color:#b00}
+form{display:flex;gap:8px}
+input{flex:1;font-size:16px;padding:8px}
+button{font-size:14px;padding:8px 14px}
+.muted{color:#888;font-size:13px}
+</style></head><body>
+<h1>AIウミガメのスープ</h1>
+<p class="muted">出題者は Jev です。はい/いいえで答えられる質問をしてください。真相が分かったらそのまま入力してください。</p>
+<label>問題: <select id="pz"></select></label>
+<div class="story" id="story">読み込み中...</div>
+<div id="log"></div>
+<form id="f"><input id="q" autocomplete="off" placeholder="質問を入力"><button id="send">送信</button></form>
+<p><button id="giveup" type="button">降参して真相を見る</button> <span class="muted" id="count"></span></p>
+<script>
+const sel=document.getElementById('pz'),story=document.getElementById('story'),log=document.getElementById('log'),count=document.getElementById('count'),send=document.getElementById('send');
+let puzzles=[],turns=0,done=false;
+function reset(){turns=0;done=false;log.innerHTML='';count.textContent='';story.textContent=puzzles[sel.value].story}
+fetch('/api/ask').then(r=>r.json()).then(p=>{puzzles=p;p.forEach((x,i)=>{const o=document.createElement('option');o.value=i;o.textContent=x.title;sel.appendChild(o)});reset()});
+sel.onchange=reset;
+function box(cls,text){const d=document.createElement('div');d.className=cls;d.textContent=text;log.appendChild(d);return d}
+document.getElementById('f').onsubmit=async e=>{
+  e.preventDefault();if(done)return;
+  const q=document.getElementById('q').value.trim();if(!q)return;
+  document.getElementById('q').value='';send.disabled=true;
+  box('q','Q. '+q);
+  try{
+    const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({puzzle:+sel.value,question:q})});
+    const a=await r.json();if(a.error)throw new Error(a.error);
+    turns++;count.textContent=turns+'問目';
+    const ad=box('a'+(a.hot>=0.7?' hot':''),'');
+    ad.innerHTML='A. '+a.label+(a.hot>=0.7?'（いい質問です）':'')+'<small>確信 '+a.confidence.toFixed(2)+' / '+a.ms+'ms</small>';
+    if(a.truth){done=true;box('solved','正解です。'+turns+'問で到達しました。\n真相: '+a.truth)}
+  }catch(err){box('err','エラー: '+err.message)}
+  send.disabled=false;window.scrollTo(0,document.body.scrollHeight);
+};
+document.getElementById('giveup').onclick=async()=>{
+  const r=await fetch('/api/ask',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({puzzle:+sel.value,reveal:true})});
+  const a=await r.json();done=true;box('solved','真相: '+a.truth);
+};
+</script></body></html>
